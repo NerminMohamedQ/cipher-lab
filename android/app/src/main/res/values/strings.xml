@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cipher Lab</string>
+    <string name="title_activity_main">Cipher Lab</string>
+    <string name="package_name">com.cipherlab.app</string>
+    <string name="custom_url_scheme">com.cipherlab.app</string>
+</resources>

@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Cipher Lab</title>
+<style>
+/* Layout: one-column phone tool. Title, cipher tabs, action switch, parameter card (with decoder wheel for Caesar), input, output or crack candidates. */
+:root {
+  --bg: #edf0ee;
+  --surface: #fbfcfb;
+  --surface2: #e4e9e6;
+  --fg: #132022;
+  --muted: #55696a;
+  --line: #c9d3d0;
+  --accent: #0b7571;
+  --accent-fg: #ffffff;
+  --accent-soft: #cfe8e5;
+  --amber: #a85d00;
+  --warn: #b3261e;
+  --font-display: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, Tahoma, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, 'Roboto Mono', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1618; --surface: #152123; --surface2: #0f191b; --fg: #e4eeed; --muted: #94aaa9;
+    --line: #2a3b3d; --accent: #4cc9bf; --accent-fg: #06201e; --accent-soft: #17383a;
+    --amber: #f2b45a; --warn: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1618; --surface: #152123; --surface2: #0f191b; --fg: #e4eeed; --muted: #94aaa9;
+  --line: #2a3b3d; --accent: #4cc9bf; --accent-fg: #06201e; --accent-soft: #17383a;
+  --amber: #f2b45a; --warn: #ff8a80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+}
+.app {
+  max-width: 560px; margin: 0 auto;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 14px;
+}
+.eyebrow { margin: 0; font: 500 12px/1 var(--font-mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+h1 { margin: 6px 0 4px; font: 600 34px/1.15 var(--font-display); letter-spacing: -.01em; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); font-size: 15px; max-width: 46ch; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+.tabs button {
+  background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px;
+  padding: 10px 4px 9px; cursor: pointer; text-align: center; min-height: 56px; min-width: 0;
+}
+.tabs .en { display: block; font: 500 15px/1.2 var(--font-mono); }
+.tabs .ar { display: block; font-size: 12px; color: var(--muted); }
+.tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
+.tabs button[aria-selected="true"] .ar { color: var(--accent); }
+
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--surface2); padding: 4px; border-radius: 10px; }
+.seg button { border: 0; background: none; border-radius: 7px; min-height: 44px; cursor: pointer; font-weight: 500; font-size: 15px; min-width: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > label, .lbl { font-size: 13px; font-weight: 500; color: var(--muted); }
+.field .hint { font-size: 12px; color: var(--muted); margin: 0; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 380px) { .row { grid-template-columns: 1fr; } }
+
+input[type="text"], input[type="number"], select, textarea {
+  width: 100%; min-width: 0; background: var(--surface2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px; min-height: 44px; font-size: 16px;
+}
+textarea { resize: vertical; line-height: 1.55; min-height: 120px; }
+#out { font-family: var(--font-body); }
+.stepper { display: grid; grid-template-columns: 48px 1fr 48px; gap: 6px; }
+.stepper button { border: 1px solid var(--line); background: var(--surface2); border-radius: 8px; min-height: 44px; font-size: 22px; cursor: pointer; line-height: 1; }
+.stepper input { text-align: center; font-family: var(--font-mono); }
+.check { display: flex; gap: 10px; align-items: center; min-height: 32px; font-size: 15px; cursor: pointer; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+
+.wheel-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.wheel { width: min(100%, 300px); height: auto; display: block; }
+.w-ring { fill: none; stroke: var(--line); stroke-width: 1; }
+.w-out { fill: var(--fg); font-family: var(--font-mono); }
+.w-in { fill: var(--amber); font-family: var(--font-mono); font-weight: 500; }
+.w-mid { fill: var(--accent); font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
+.w-ptr { fill: var(--accent); }
+.wheel-cap { margin: 0; font: 400 12px/1.4 var(--font-mono); color: var(--muted); text-align: center; }
+
+.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--surface2); border-radius: 8px; padding: 0 14px; min-height: 44px; cursor: pointer; font-size: 15px; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 500; }
+.count { margin-inline-start: auto; font: 400 12px var(--font-mono); color: var(--muted); }
+
+.note { margin: 0; font-size: 14px; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); }
+.note[data-kind="warn"] { background: transparent; border: 1px solid var(--warn); color: var(--warn); }
+
+.cands { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.cand { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; background: var(--surface); }
+.cand.best { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cand-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tag { font: 500 13px var(--font-mono); direction: ltr; unicode-bidi: isolate; }
+.badge { font-size: 12px; font-weight: 600; background: var(--accent); color: var(--accent-fg); border-radius: 4px; padding: 1px 8px; }
+.cand-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 9em; overflow-y: auto; }
+.cand-actions { display: flex; gap: 8px; }
+.cand-actions .btn { min-height: 38px; font-size: 14px; }
+
+details { font-size: 14px; color: var(--muted); }
+details summary { cursor: pointer; min-height: 32px; }
+details p { margin: 6px 0; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 14px; z-index: 20; }
+@media (prefers-reduced-motion: no-preference) { .seg button, .tabs button, .btn { transition: background-color .15s, color .15s; } }
+</style>
+</head>
+<body>
+
+
+<main class="app" lang="en" dir="ltr">
+  <header>
+    <p class="eyebrow" dir="ltr">Caesar · Vigenère · Rail Fence</p>
+    <h1>Cipher Lab</h1>
+    <p class="lede">Type in any language, with any letters, numbers, symbols or spaces. Encrypt, decrypt or crack the cipher.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Cipher type" dir="ltr">
+    <button type="button" role="tab" data-cipher="caesar" aria-selected="true"><span class="en">Caesar</span><span class="ar">shift</span></button>
+    <button type="button" role="tab" data-cipher="vig" aria-selected="false"><span class="en">Vigenère</span><span class="ar">keyword</span></button>
+    <button type="button" role="tab" data-cipher="rail" aria-selected="false"><span class="en">Rail Fence</span><span class="ar">zigzag</span></button>
+  </div>
+
+  <div class="seg" role="group" aria-label="Action">
+    <button type="button" data-action="enc" aria-pressed="true">Encrypt</button>
+    <button type="button" data-action="dec" aria-pressed="false">Decrypt</button>
+    <button type="button" data-action="crack" aria-pressed="false">Crack</button>
+  </div>
+
+  <section class="card" aria-label="Settings">
+    <div class="field" id="p-shift">
+      <label for="shiftIn">Shift amount</label>
+      <div class="stepper" dir="ltr">
+        <button type="button" data-step="-1" data-target="shiftIn" aria-label="Decrease">−</button>
+        <input id="shiftIn" type="number" inputmode="numeric" step="1" value="3">
+        <button type="button" data-step="1" data-target="shiftIn" aria-label="Increase">+</button>
+      </div>
+    </div>
+
+    <div class="field" id="p-key" hidden>
+      <label for="keyIn">Key</label>
+      <input id="keyIn" type="text" dir="auto" value="KEY" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="hint">Letters from any language. Spaces and symbols in the key are ignored.</p>
+    </div>
+
+    <div class="row" id="p-rails" hidden>
+      <div class="field">
+        <label for="railsIn">Rails</label>
+        <div class="stepper" dir="ltr">
+          <button type="button" data-step="-1" data-target="railsIn" aria-label="Decrease">−</button>
+          <input id="railsIn" type="number" inputmode="numeric" step="1" min="2" value="3">
+          <button type="button" data-step="1" data-target="railsIn" aria-label="Increase">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="offsetIn">Offset</label>
+        <div class="stepper" dir="ltr">
+          <button type="button" data-step="-1" data-target="offsetIn" aria-label="Decrease">−</button>
+          <input id="offsetIn" type="number" inputmode="numeric" step="1" min="0" value="0">
+          <button type="button" data-step="1" data-target="offsetIn" aria-label="Increase">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field" id="p-scope">
+      <label for="scopeIn">Character scope</label>
+      <select id="scopeIn">
+        <option value="auto">Auto: each language rotates within its own alphabet</option>
+        <option value="unicode">Full Unicode: all letters, symbols and emoji</option>
+      </select>
+      <label class="check"><input type="checkbox" id="digitsIn" checked> Encrypt digits (0-9, ٠-٩, ۰-۹)</label>
+    </div>
+
+    <div class="field" id="p-crib" hidden>
+      <label for="cribIn">Expected word in the plaintext (optional)</label>
+      <input id="cribIn" type="text" dir="auto" autocomplete="off" spellcheck="false" placeholder="e.g. the or مرحبا">
+      <p class="hint">If you enter one, results containing it are ranked first.</p>
+    </div>
+    <div class="field" id="p-klen" hidden>
+      <label for="klenIn">Key length (optional)</label>
+      <input id="klenIn" type="number" inputmode="numeric" min="1" max="40" placeholder="Detected automatically">
+    </div>
+    <label class="check" id="p-tryoff" hidden><input type="checkbox" id="tryOffIn"> Also try Offset values</label>
+
+    <div class="wheel-wrap" id="wheelWrap">
+      <svg class="wheel" id="wheel" viewBox="0 0 300 300" role="img" aria-label="Shift wheel" direction="ltr"></svg>
+      <p class="wheel-cap" id="wheelCap" dir="ltr"></p>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Text">
+    <div class="field">
+      <label for="inp">Text</label>
+      <textarea id="inp" dir="auto" spellcheck="false" autocomplete="off"></textarea>
+    </div>
+    <div class="tools">
+      <button type="button" class="btn" id="sampleBtn">Example</button>
+      <button type="button" class="btn" id="clearBtn">Clear</button>
+      <span class="count" id="count" dir="ltr"></span>
+    </div>
+    <p class="note" id="note" role="status" hidden></p>
+  </section>
+
+  <section class="card" id="outCard" aria-label="Result">
+    <div id="encOut">
+      <div class="field">
+        <label for="out">Result</label>
+        <textarea id="out" dir="auto" readonly></textarea>
+      </div>
+      <div class="tools" style="margin-top:10px">
+        <button type="button" class="btn primary" id="copyBtn">Copy</button>
+        <button type="button" class="btn" id="swapBtn">Use as input</button>
+      </div>
+    </div>
+    <div id="crackOut" hidden>
+      <span class="lbl">Candidates</span>
+      <ul class="cands" id="cands" style="margin-top:8px"></ul>
+      <div class="tools" style="margin-top:10px"><button type="button" class="btn" id="moreBtn" hidden>Show all</button></div>
+    </div>
+  </section>
+
+  <details>
+    <summary>How are languages and symbols handled?</summary>
+    <p>In Auto mode, each letter rotates within the alphabet of its own language: Latin, Arabic (including Persian), Cyrillic, Greek, Hebrew, and letters like é and ü. Japanese, Korean, Chinese, Hindi and Thai rotate within their own character ranges. Digits rotate from 0 to 9. Spaces and symbols stay as they are.</p>
+    <p>In Full Unicode mode, every letter, symbol and emoji moves through the whole Unicode table, so spaces and symbols are encrypted too. Rail Fence works on every character, space and symbol as it is.</p>
+    <p>Automatic cracking relies on letter frequencies in English, Arabic and Russian. The longer the text, the more accurate the result.</p>
+  </details>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+// CORE START
+const mod = (a, n) => ((a % n) + n) % n;
+
+const RINGS = [];
+const addRing = (id, str) => RINGS.push({ id, chars: Array.from(str) });
+const LAT = 'abcdefghijklmnopqrstuvwxyz';
+const LATX = 'àáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ';
+const AR = 'اأإآبتثجحخدذرزسشصضطظعغفقكلمنهويءةىؤئپچژگکی';
+const GR = 'αβγδεζηθικλμνξοπρσςτυφχψω';
+const CY = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя';
+addRing('latin', LAT); addRing('latin', LAT.toUpperCase());
+addRing('latinx', LATX); addRing('latinx', Array.from(LATX).map(c => c.toUpperCase()).join(''));
+addRing('arabic', AR);
+addRing('greek', GR); addRing('greek', 'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ');
+addRing('cyrillic', CY); addRing('cyrillic', Array.from(CY).map(c => c.toUpperCase()).join(''));
+addRing('hebrew', 'אבגדהוזחטיכלמנסעפצקרשתךםןףץ');
+
+const DIGS = ['0123456789', '٠١٢٣٤٥٦٧٨٩', '۰۱۲۳۴۵۶۷۸۹'].map(s => Array.from(s));
+const BLOCKS = [
+  { s: 0x3041, e: 0x3096 }, { s: 0x30A1, e: 0x30FA }, { s: 0x4E00, e: 0x9FFF },
+  { s: 0xAC00, e: 0xD7A3 }, { s: 0x0905, e: 0x0939 }, { s: 0x0E01, e: 0x0E2E }
+];
+
+const MAP = new Map();
+RINGS.forEach((r, ri) => r.chars.forEach((c, i) => MAP.set(c, { t: 'r', r: ri, i })));
+DIGS.forEach((set, si) => set.forEach((c, i) => MAP.set(c, { t: 'd', s: si, i })));
+
+function classify(ch) {
+  const hit = MAP.get(ch);
+  if (hit) return hit;
+  const cp = ch.codePointAt(0);
+  for (let b = 0; b < BLOCKS.length; b++) {
+    if (cp >= BLOCKS[b].s && cp <= BLOCKS[b].e) return { t: 'b', b, i: cp - BLOCKS[b].s };
+  }
+  return null;
+}
+
+function applyShift(ch, c, k, digits) {
+  if (c.t === 'r') { const a = RINGS[c.r].chars; return a[mod(c.i + k, a.length)]; }
+  if (c.t === 'd') { if (!digits) return ch; return DIGS[c.s][mod(c.i + k, 10)]; }
+  const B = BLOCKS[c.b];
+  return String.fromCodePoint(B.s + mod(c.i + k, B.e - B.s + 1));
+}
+
+const UMIN = 0x20, USUR0 = 0xD800, USUR1 = 0xDFFF, UMAX = 0x10FFFF;
+const UPOOL = (UMAX - UMIN + 1) - (USUR1 - USUR0 + 1);
+const uIdx = cp => (cp > USUR1 ? cp - UMIN - 0x800 : cp - UMIN);
+const uCp = i => { const c = i + UMIN; return c >= USUR0 ? c + 0x800 : c; };
+function uShift(ch, k) {
+  const cp = ch.codePointAt(0);
+  if (cp < UMIN || (cp >= USUR0 && cp <= USUR1)) return ch;
+  return String.fromCodePoint(uCp(mod(uIdx(cp) + k, UPOOL)));
+}
+
+function caesar(text, k, dir, o) {
+  const s = dir === 'dec' ? -k : k;
+  const out = [];
+  for (const ch of text) {
+    if (o.scope === 'unicode') { out.push(uShift(ch, s)); continue; }
+    const c = classify(ch);
+    out.push(c ? applyShift(ch, c, s, o.digits) : ch);
+  }
+  return out.join('');
+}
+
+function keyShifts(key, o) {
+  const ks = [];
+  for (const ch of key) {
+    if (o.scope === 'unicode') { const cp = ch.codePointAt(0); if (cp >= UMIN && !(cp >= USUR0 && cp <= USUR1)) ks.push(cp); }
+    else { const c = classify(ch); if (c) ks.push(c.i); }
+  }
+  return ks;
+}
+
+function vig(text, key, dir, o) {
+  const ks = keyShifts(key, o);
+  if (!ks.length) return null;
+  const sg = dir === 'dec' ? -1 : 1;
+  let pos = 0;
+  const out = [];
+  for (const ch of text) {
+    if (o.scope === 'unicode') {
+      const cp = ch.codePointAt(0);
+      if (cp < UMIN || (cp >= USUR0 && cp <= USUR1)) { out.push(ch); continue; }
+      out.push(uShift(ch, ks[pos % ks.length] * sg)); pos++;
+      continue;
+    }
+    const c = classify(ch);
+    if (!c) { out.push(ch); continue; }
+    out.push(applyShift(ch, c, ks[pos % ks.length] * sg, o.digits));
+    if (c.t !== 'd') pos++;
+  }
+  return out.join('');
+}
+
+function railPattern(len, n, off) {
+  const cycle = 2 * (n - 1), r = [];
+  for (let i = 0; i < len; i++) { const p = (i + off) % cycle; r.push(p < n ? p : cycle - p); }
+  return r;
+}
+function railEnc(text, n, off) {
+  const a = Array.from(text);
+  if (n < 2 || a.length < 2) return text;
+  const r = railPattern(a.length, n, off), out = [];
+  for (let k = 0; k < n; k++) for (let i = 0; i < a.length; i++) if (r[i] === k) out.push(a[i]);
+  return out.join('');
+}
+function railDec(text, n, off) {
+  const a = Array.from(text);
+  if (n < 2 || a.length < 2) return text;
+  const r = railPattern(a.length, n, off), res = new Array(a.length);
+  let j = 0;
+  for (let k = 0; k < n; k++) for (let i = 0; i < a.length; i++) if (r[i] === k) res[i] = a[j++];
+  return res.join('');
+}
+
+// ---------- cracking ----------
+const EN_F = [8.167,1.492,2.782,4.253,12.702,2.228,2.015,6.094,6.966,0.153,0.772,4.025,2.406,6.749,7.507,1.929,0.095,5.987,6.327,9.056,2.758,0.978,2.360,0.150,1.974,0.074];
+const AR_F = { 'ا':11, 'أ':1.2, 'إ':.5, 'آ':.1, 'ب':3.3, 'ت':3.6, 'ث':.7, 'ج':1.5, 'ح':2.2, 'خ':1, 'د':2.3, 'ذ':.6, 'ر':4.4, 'ز':.5, 'س':2.9, 'ش':1.1, 'ص':1.3, 'ض':.8, 'ط':1, 'ظ':.3, 'ع':3.1, 'غ':.5, 'ف':2.5, 'ق':2.2, 'ك':2.8, 'ل':8.5, 'م':5.7, 'ن':5.5, 'ه':3.3, 'و':5, 'ي':6.5, 'ء':.5, 'ة':2, 'ى':1.1, 'ؤ':.2, 'ئ':.5 };
+const RU_F = [8,1.6,4.5,1.7,3,8.5,.2,.9,1.6,7.4,1.2,3.5,4.3,3.1,6.7,11,2.8,4.7,5.5,6.3,2.6,.3,1,.5,1.4,.7,.4,.04,1.9,1.7,.3,.6,2];
+const FREQ = {
+  latin: EN_F,
+  arabic: Array.from(AR).map(c => (AR_F[c] !== undefined ? AR_F[c] : 0.03)),
+  cyrillic: RU_F
+};
+const firstRing = id => RINGS.findIndex(r => r.id === id);
+
+function dominantScript(text) {
+  const cnt = {};
+  for (const ch of text) { const c = classify(ch); if (c && c.t === 'r') { const id = RINGS[c.r].id; cnt[id] = (cnt[id] || 0) + 1; } }
+  let best = null;
+  for (const id in cnt) if (!best || cnt[id] > best.count) best = { id, count: cnt[id] };
+  return best;
+}
+
+function chi2Of(counts, id) {
+  const f = FREQ[id], sum = f.reduce((a, b) => a + b, 0);
+  const total = counts.reduce((a, b) => a + b, 0);
+  if (!total) return Infinity;
+  let x = 0;
+  for (let i = 0; i < counts.length; i++) {
+    const e = Math.max(f[i] / sum * total, total * 0.0005);
+    x += (counts[i] - e) * (counts[i] - e) / e;
+  }
+  return x / total;
+}
+function textChi2(text, id) {
+  const n = RINGS[firstRing(id)].chars.length, counts = new Array(n).fill(0);
+  for (const ch of text) { const c = classify(ch); if (c && c.t === 'r' && RINGS[c.r].id === id) counts[c.i]++; }
+  return chi2Of(counts, id);
+}
+
+const NG = [
+  { bi: ['th','he','in','er','an','re','on','at','en','nd','ti','es','or','te','of','ed','is','it','al','ar','st','to','nt','ng','se','ha','as','ou','io','le','ve','co','me','de','hi','ri','ro','ic','ne','ea','ra','ce'], w: [' the ',' and ',' to ',' of ',' is ',' in ',' that ',' it ',' you ',' at ',' we ',' are ',' be '] },
+  { bi: ['ال','لا','من','في','ان','ون','ين','ما','هم','لي','يا','ها','ات','لم','ور','تم','عل','لى','نا','كا','ست','عن'], w: [' في ',' من ',' على ',' ان ',' الى ',' عن ',' هذا ',' ما ',' لا '] },
+  { bi: ['ст','но','то','на','ен','ов','ни','ра','во','ко','по','пр','ть','ре','ан','ли'], w: [' и ',' в ',' не ',' на ',' что ',' я ',' с '] }
+];
+function countOcc(s, sub) { let n = 0, i = s.indexOf(sub); while (i !== -1) { n++; i = s.indexOf(sub, i + 1); } return n; }
+function ngramScore(plain) {
+  const s = ' ' + plain.toLowerCase().replace(/\s+/g, ' ') + ' ';
+  let best = 0;
+  for (const L of NG) {
+    let v = 0;
+    for (const b of L.bi) v += countOcc(s, b);
+    for (const w of L.w) v += 4 * countOcc(s, w);
+    if (v > best) best = v;
+  }
+  return best;
+}
+const hasCrib = (plain, crib) => crib && plain.toLowerCase().includes(crib.toLowerCase());
+
+const WORDS = new Set((
+  'the and to of a in is it you that he was for on are with as i his they be at one have this from or had by but some what there we can out other were all your when up use word how said an each she which do their time if will way about many then them would write like so these her long make thing see him two has look more day could go come did no most people my over know water than call first who may down side been now find hello hi world secret message test attack dawn meet me not tell plan bridge old night map morning bring documents anyone until our late midnight ' +
+  'في من على الى إلى عن هذا هذه ذلك التي الذي مع كل بعد قبل كان كانت لا ما هو هي نحن انا أنا مرحبا السلام عليكم العالم العربية اللغة سر رسالة اختبار صباح الخير ' +
+  'и в не на я что он с как а то все она так его но да ты к у же вы за бы по только ее мне было вот от меня еще нет о из ему теперь когда даже ну вдруг ли если уже или ни быть был него до вас опять вам сказал ведь там потом себя ничего ей может они тут где есть надо ней для мы тебя их чем была сам чтоб без будто человек чего раз тоже себе под будет тогда кто этот того потому этого какой совсем ним здесь этом один почти мой тем чтобы нее привет мир'
+).split(' '));
+function wordStats(plain) {
+  const toks = plain.toLowerCase().match(/\p{L}+/gu) || [];
+  let total = 0, hit = 0;
+  for (const t of toks) {
+    total += t.length;
+    if (WORDS.has(t) || (t.length > 3 && (WORDS.has(t.slice(2)) && t.startsWith('ال'))) || (t.length > 2 && t[0] === 'و' && WORDS.has(t.slice(1)))) hit += t.length;
+  }
+  return { total, hit };
+}
+
+function caesarCrack(text, o, crib) {
+  if (o.scope === 'unicode') return { error: 'unicode' };
+  const d = dominantScript(text);
+  if (!d) return { error: 'nolang' };
+  const N = RINGS[firstRing(d.id)].chars.length;
+  const table = !!FREQ[d.id];
+  const cands = [];
+  for (let k = 1; k < N; k++) {
+    const plain = caesar(text, k, 'dec', o);
+    const ws = wordStats(plain);
+    let score = table ? -textChi2(plain, d.id) * 10 + ngramScore(plain) / Math.max(1, d.count) * 10 + (ws.total ? ws.hit / ws.total * 30 : 0) : ws.hit;
+    if (hasCrib(plain, crib)) score += 1e9;
+    cands.push({ label: 'Shift ' + k, plain, score, k });
+  }
+  cands.sort((a, b) => b.score - a.score || a.k - b.k);
+  return { cands, ranked: table || !!crib, noTable: !table };
+}
+
+function railCrack(text, o, crib, tryOff) {
+  const len = Array.from(text).length;
+  if (len < 3) return { error: 'short' };
+  const maxN = Math.min(len - 1, 40), seen = new Set(), cands = [];
+  for (let n = 2; n <= maxN; n++) {
+    const cycle = 2 * (n - 1);
+    const offs = tryOff && len <= 3000 ? cycle : 1;
+    for (let off = 0; off < offs; off++) {
+      const plain = railDec(text, n, off);
+      if (seen.has(plain)) continue;
+      seen.add(plain);
+      let score = ngramScore(plain) + 3 * wordStats(plain).hit;
+      if (hasCrib(plain, crib)) score += 1e9;
+      cands.push({ label: 'Rails ' + n + (off ? ' · Offset ' + off : ''), plain, score, k: n * 100 + off });
+    }
+  }
+  cands.sort((a, b) => b.score - a.score || a.k - b.k);
+  return { cands, ranked: cands.length > 0 && cands[0].score > 0 };
+}
+
+function vigCrack(text, o, crib, klenFixed) {
+  if (o.scope === 'unicode') return { error: 'unicode' };
+  const d = dominantScript(text);
+  if (!d || !FREQ[d.id]) return { error: 'nolang' };
+  const ring = firstRing(d.id), N = RINGS[ring].chars.length, RC = RINGS[ring].chars;
+  const items = [];
+  let pos = 0;
+  for (const ch of text) {
+    const c = classify(ch);
+    if (!c || c.t === 'd') continue;
+    if (c.t === 'r' && RINGS[c.r].id === d.id) items.push({ pos, i: c.i });
+    pos++;
+  }
+  if (items.length < 15) return { error: 'short' };
+  const maxM = Math.min(24, Math.floor(items.length / 2));
+  const qual = plain => {
+    const ws = wordStats(plain);
+    return -textChi2(plain, d.id) * 10 + (ws.total ? ws.hit / ws.total * 30 : 0) + ngramScore(plain) / Math.max(1, d.count) * 10;
+  };
+  const colsOf = m => {
+    const cols = [];
+    for (let g = 0; g < m; g++) { const cnt = new Array(N).fill(0); for (const it of items) if (it.pos % m === g) cnt[it.i]++; cols.push(cnt); }
+    return cols;
+  };
+  const solveRel = m => {
+    const cols = colsOf(m), rel = [0];
+    for (let g = 1; g < m; g++) {
+      let bd = 0, bv = -1;
+      for (let dl = 0; dl < N; dl++) {
+        let v = 0;
+        for (let y = 0; y < N; y++) v += cols[0][y] * cols[g][(y + dl) % N];
+        if (v > bv) { bv = v; bd = dl; }
+      }
+      rel.push(bd);
+    }
+    let bs = 0, bx = Infinity;
+    for (let s0 = 0; s0 < N; s0++) {
+      const cnt = new Array(N).fill(0);
+      for (let g = 0; g < m; g++) for (let y = 0; y < N; y++) cnt[mod(y - (s0 + rel[g]), N)] += cols[g][y];
+      const x = chi2Of(cnt, d.id);
+      if (x < bx) { bx = x; bs = s0; }
+    }
+    return Array.from({ length: m }, (_, g) => RC[mod(bs + rel[g], N)]).join('');
+  };
+  const solveCol = m => {
+    const cols = colsOf(m), out = [];
+    for (let g = 0; g < m; g++) {
+      let bs = 0, bx = Infinity;
+      if (cols[g].some(v => v > 0)) {
+        for (let s = 0; s < N; s++) {
+          const cnt = new Array(N).fill(0);
+          for (let y = 0; y < N; y++) cnt[mod(y - s, N)] += cols[g][y];
+          const x = chi2Of(cnt, d.id);
+          if (x < bx) { bx = x; bs = s; }
+        }
+      }
+      out.push(RC[bs]);
+    }
+    return out.join('');
+  };
+  const refine = key => {
+    const ks = Array.from(key);
+    let best = qual(vig(text, ks.join(''), 'dec', o));
+    for (let pass = 0; pass < 2; pass++) {
+      let changed = false;
+      for (let g = 0; g < ks.length; g++) {
+        const keep = ks[g];
+        for (let s = 0; s < N; s++) {
+          if (RC[s] === keep) continue;
+          const trial = ks.slice(); trial[g] = RC[s];
+          const q = qual(vig(text, trial.join(''), 'dec', o));
+          if (q > best + 1e-9) { best = q; ks[g] = RC[s]; changed = true; }
+        }
+      }
+      if (!changed) break;
+    }
+    return ks.join('');
+  };
+  const lengths = klenFixed ? [klenFixed] : Array.from({ length: maxM }, (_, i) => i + 1);
+  let pool = [];
+  for (const m of lengths) {
+    let bestKey = null, bestQ = -Infinity;
+    for (const key of [solveRel(m), solveCol(m)]) {
+      const q = qual(vig(text, key, 'dec', o));
+      if (q > bestQ) { bestQ = q; bestKey = key; }
+    }
+    pool.push({ m, key: bestKey, q: bestQ - 0.3 * m });
+  }
+  pool.sort((a, b) => b.q - a.q);
+  pool = pool.slice(0, 3);
+  const cands = [], seen = new Set();
+  for (const p of pool) {
+    const key = refine(p.key);
+    const plain = vig(text, key, 'dec', o);
+    if (plain === null || seen.has(plain)) continue;
+    seen.add(plain);
+    let score = qual(plain) - 0.3 * key.length;
+    if (hasCrib(plain, crib)) score += 1e9;
+    cands.push({ label: 'Key ' + key, plain, score, k: key.length });
+  }
+  cands.sort((a, b) => b.score - a.score || a.k - b.k);
+  return { cands, ranked: true, warn: items.length < 60 };
+}
+// CORE END
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const S = { cipher: 'caesar', action: 'enc', shift: 3, key: 'KEY', rails: 3, offset: 0, scope: 'auto', digits: true, crib: '', klen: '', tryOff: false, showAll: false };
+let lastInserted = '';
+
+const SAMPLES = {
+  caesar: 'Hello World! مرحبا بالعالم 123',
+  vig: 'Attack at dawn! هجوم عند الفجر 2026',
+  rail: 'WE ARE DISCOVERED, FLEE AT ONCE! 🚀'
+};
+const CRACK_SAMPLES = {
+  caesar: () => caesar('Meet me at the old bridge at midnight, and do not be late!', 7, 'enc', { scope: 'auto', digits: true }),
+  vig: () => vig('Meet me at the old bridge at midnight. Bring the documents and the map, and do not tell anyone about our plan until the morning comes.', 'SECRET', 'enc', { scope: 'auto', digits: true }),
+  rail: () => railEnc('Meet me at the old bridge at midnight, and do not be late!', 4, 0)
+};
+const sampleText = () => (S.action === 'crack' ? CRACK_SAMPLES[S.cipher]() : SAMPLES[S.cipher]);
+
+function setInput(v) { $('inp').value = v; lastInserted = v; }
+
+let toastTimer = 0;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 1800);
+}
+async function copyText(text, srcEl) {
+  try { await navigator.clipboard.writeText(text); toast('Copied'); return; } catch (e) { /* fall through */ }
+  try {
+    const ta = srcEl && srcEl.select ? srcEl : Object.assign(document.createElement('textarea'), { value: text });
+    if (!ta.isConnected) document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    if (!srcEl || !srcEl.select) ta.remove();
+    toast(ok ? 'Copied' : 'Select the text and copy it manually');
+  } catch (e) { toast('Select the text and copy it manually'); }
+}
+
+function setNote(msg, kind) {
+  const n = $('note'); n.textContent = msg || ''; n.hidden = !msg; n.dataset.kind = kind || '';
+}
+
+function drawWheel() {
+  const d = dominantScript($('inp').value);
+  const id = d ? d.id : 'latin';
+  const idxs = RINGS.map((r, i) => (r.id === id ? i : -1)).filter(i => i >= 0);
+  const chars = RINGS[idxs[idxs.length - 1]].chars, n = chars.length;
+  const kk = mod(S.action === 'dec' ? -S.shift : S.shift, n);
+  const step = 2 * Math.PI / n, fs = n > 30 ? 10 : n > 26 ? 11 : 13;
+  let svg = '<circle class="w-ring" cx="150" cy="150" r="142"/><circle class="w-ring" cx="150" cy="150" r="112"/><circle class="w-ring" cx="150" cy="150" r="82"/>';
+  for (let j = 0; j < n; j++) {
+    const ao = -Math.PI / 2 + j * step, ai = -Math.PI / 2 + (j - kk) * step;
+    svg += '<text class="w-out" x="' + (150 + 127 * Math.cos(ao)).toFixed(1) + '" y="' + (150 + 127 * Math.sin(ao)).toFixed(1) + '" font-size="' + fs + '" text-anchor="middle" dominant-baseline="central">' + chars[j] + '</text>';
+    svg += '<text class="w-in" x="' + (150 + 97 * Math.cos(ai)).toFixed(1) + '" y="' + (150 + 97 * Math.sin(ai)).toFixed(1) + '" font-size="' + fs + '" text-anchor="middle" dominant-baseline="central">' + chars[j] + '</text>';
+  }
+  svg += '<path class="w-ptr" d="M143 1 L157 1 L150 13 Z"/>';
+  svg += '<text class="w-mid" x="150" y="150" text-anchor="middle" dominant-baseline="central">' + chars[0] + ' → ' + chars[kk] + '</text>';
+  $('wheel').innerHTML = svg;
+  $('wheelCap').textContent = [0, 1, 2].map(i => chars[i] + '→' + chars[(i + kk) % n]).join('   ') + '   (' + (S.action === 'dec' ? 'decrypt' : 'encrypt') + ')';
+}
+
+function unsupportedLetters(text) {
+  if (S.scope !== 'auto' || S.cipher === 'rail') return false;
+  for (const ch of text) if (/\p{L}/u.test(ch) && !classify(ch)) return true;
+  return false;
+}
+
+const ERR = {
+  unicode: 'Automatic cracking works in Auto mode only. Change the character scope and try again.',
+  nolang: 'No letters from a supported alphabet (Latin, Arabic, Cyrillic) were found. Enter encrypted text that contains letters.',
+  short: 'The text is too short to crack. Enter a longer text (100 characters or more is best).'
+};
+
+function renderCands(res) {
+  const ul = $('cands'); ul.textContent = '';
+  const list = S.showAll ? res.cands : res.cands.slice(0, 6);
+  list.forEach((cd, idx) => {
+    const li = document.createElement('li');
+    li.className = 'cand' + (idx === 0 && res.ranked ? ' best' : '');
+    const head = document.createElement('div'); head.className = 'cand-head';
+    const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = cd.label; head.appendChild(tag);
+    if (idx === 0 && res.ranked) { const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'Most likely'; head.appendChild(b); }
+    const p = document.createElement('p'); p.className = 'cand-text'; p.dir = 'auto'; p.textContent = cd.plain;
+    const act = document.createElement('div'); act.className = 'cand-actions';
+    const c1 = document.createElement('button'); c1.type = 'button'; c1.className = 'btn'; c1.textContent = 'Copy';
+    c1.addEventListener('click', () => copyText(cd.plain));
+    const c2 = document.createElement('button'); c2.type = 'button'; c2.className = 'btn'; c2.textContent = 'Use as input';
+    c2.addEventListener('click', () => { S.action = 'enc'; setInput(cd.plain); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    act.append(c1, c2);
+    li.append(head, p, act);
+    ul.appendChild(li);
+  });
+  const more = $('moreBtn');
+  more.hidden = res.cands.length <= 6;
+  more.textContent = S.showAll ? 'Show top only' : 'Show all (' + res.cands.length + ')';
+}
+
+function render() {
+  const c = S.cipher, a = S.action, crack = a === 'crack';
+  document.querySelectorAll('[data-cipher]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.cipher === c)));
+  document.querySelectorAll('[data-action]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.action === a)));
+  $('p-shift').hidden = !(c === 'caesar' && !crack);
+  $('p-key').hidden = !(c === 'vig' && !crack);
+  $('p-rails').hidden = !(c === 'rail' && !crack);
+  $('p-scope').hidden = c === 'rail';
+  $('p-crib').hidden = !crack;
+  $('p-klen').hidden = !(crack && c === 'vig');
+  $('p-tryoff').hidden = !(crack && c === 'rail');
+  $('wheelWrap').hidden = !(c === 'caesar' && !crack && S.scope === 'auto');
+  $('encOut').hidden = crack;
+  $('crackOut').hidden = !crack;
+  $('outCard').querySelector('#encOut') && ($('outCard').setAttribute('aria-label', crack ? 'Candidates' : 'Result'));
+
+  const text = $('inp').value;
+  $('count').textContent = Array.from(text).length + ' chars';
+  const o = { scope: S.scope, digits: S.digits };
+  let note = '', kind = '';
+  try {
+    if (!crack) {
+      let out = '';
+      if (c === 'caesar') out = caesar(text, S.shift, a, o);
+      else if (c === 'vig') {
+        const r = vig(text, S.key, a, o);
+        if (r === null) { out = ''; note = 'Enter a key that contains letters or digits.'; kind = 'warn'; } else out = r;
+      } else out = a === 'enc' ? railEnc(text, S.rails, S.offset % (2 * (S.rails - 1))) : railDec(text, S.rails, S.offset % (2 * (S.rails - 1)));
+      $('out').value = out;
+      if (c === 'caesar' && S.scope === 'auto') drawWheel();
+      if (!note && unsupportedLetters(text)) note = 'Some letters in the text belong to a language Auto mode does not support, so they stayed unchanged. Choose Full Unicode to encrypt everything.';
+    } else if (!text.trim()) {
+      $('cands').textContent = ''; $('moreBtn').hidden = true; note = 'Type or paste the encrypted text above.';
+    } else {
+      let res;
+      if (c === 'caesar') res = caesarCrack(text, o, S.crib);
+      else if (c === 'vig') res = vigCrack(text, o, S.crib, parseInt(S.klen, 10) > 0 ? parseInt(S.klen, 10) : 0);
+      else res = railCrack(text, o, S.crib, S.tryOff);
+      if (res.error) { $('cands').textContent = ''; $('moreBtn').hidden = true; note = ERR[res.error]; kind = 'warn'; }
+      else {
+        renderCands(res);
+        if (res.noTable && !S.crib) note = 'There is no frequency table for this language. Review the candidates yourself or enter an expected word.';
+        else if (!res.ranked) note = 'No clear candidate found. Try an expected word or a longer text.';
+        else if (res.warn) note = 'The text is fairly short, so the key may be inaccurate. Try setting the key length.';
+      }
+    }
+  } catch (e) { note = 'Something went wrong while processing. Try a shorter text.'; kind = 'warn'; }
+  setNote(note, kind);
+}
+
+function clampInt(v, min, max) { v = parseInt(v, 10); if (isNaN(v)) v = 0; return Math.max(min, Math.min(max, v)); }
+function readParams() {
+  S.shift = clampInt($('shiftIn').value, -100000, 100000);
+  S.rails = clampInt($('railsIn').value, 2, 60); if (S.rails < 2) S.rails = 2;
+  S.offset = clampInt($('offsetIn').value, 0, 1000);
+  S.key = $('keyIn').value; S.crib = $('cribIn').value; S.klen = $('klenIn').value;
+  S.scope = $('scopeIn').value; S.digits = $('digitsIn').checked; S.tryOff = $('tryOffIn').checked;
+}
+
+function switchContext() {
+  if ($('inp').value === lastInserted || !$('inp').value) setInput(sampleText());
+  S.showAll = false;
+  render();
+}
+
+document.querySelectorAll('[data-cipher]').forEach(b => b.addEventListener('click', () => { S.cipher = b.dataset.cipher; switchContext(); }));
+document.querySelectorAll('[data-action]').forEach(b => b.addEventListener('click', () => { S.action = b.dataset.action; switchContext(); }));
+document.querySelectorAll('.stepper button').forEach(b => b.addEventListener('click', () => {
+  const inp = $(b.dataset.target);
+  const min = inp.min === '' ? -100000 : +inp.min;
+  inp.value = Math.max(min, (parseInt(inp.value, 10) || 0) + (+b.dataset.step));
+  readParams(); render();
+}));
+['inp', 'shiftIn', 'railsIn', 'offsetIn', 'keyIn', 'cribIn', 'klenIn'].forEach(id => $(id).addEventListener('input', () => { readParams(); S.showAll = false; render(); }));
+['scopeIn', 'digitsIn', 'tryOffIn'].forEach(id => $(id).addEventListener('change', () => { readParams(); render(); }));
+$('copyBtn').addEventListener('click', () => copyText($('out').value, $('out')));
+$('swapBtn').addEventListener('click', () => { setInput($('out').value); lastInserted = ''; render(); });
+$('sampleBtn').addEventListener('click', () => { setInput(sampleText()); render(); });
+$('clearBtn').addEventListener('click', () => { setInput(''); lastInserted = ''; render(); $('inp').focus(); });
+$('moreBtn').addEventListener('click', () => { S.showAll = !S.showAll; render(); });
+
+setInput(sampleText());
+readParams();
+render();
+</script>
+
+</body>
+</html>
